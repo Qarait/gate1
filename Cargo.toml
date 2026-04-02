@@ -1,0 +1,11 @@
+[package]
+name = "gate1"
+version = "0.1.0"
+edition = "2021"
+description = "Small, deterministic authorization kernel with bounded evaluation"
+license = "MIT"
+rust-version = "1.74"
+
+[lib]
+name = "gate1"
+path = "src/lib.rs"

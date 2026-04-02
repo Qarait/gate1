@@ -1,0 +1,169 @@
+# gate1
+
+`gate1` is a small authorization kernel for Rust.
+
+It is intentionally narrow in scope: build a policy once, validate it up front, then evaluate request-time decisions with deterministic, bounded behavior.
+
+```rust
+use gate1::{
+    Action, AtomRef, ConditionOp, ConditionProgram, Context, ContextEntry, Policy, Principal,
+    Resource, Rule, ValueRef,
+};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let condition = ConditionProgram::new(vec![
+        ConditionOp::attr_eq_str("tenant", "acme")?,
+        ConditionOp::attr_eq_bool("mfa", true)?,
+        ConditionOp::and(),
+    ])?;
+
+    let policy = Policy::new(vec![
+        Rule::allow("allow_invoice_read")?
+            .principal_exact("user:alice")?
+            .action_exact("read")?
+            .resource_exact("invoice:123")?
+            .condition(condition)
+            .build(),
+        Rule::deny("deny_suspended")?
+            .condition(ConditionProgram::new(vec![
+                ConditionOp::attr_eq_bool("suspended", true)?,
+            ])?)
+            .build(),
+    ])?;
+
+    let entries = [
+        ContextEntry::new(
+            AtomRef::new("tenant")?,
+            ValueRef::Str(AtomRef::new("acme")?),
+        ),
+        ContextEntry::new(AtomRef::new("mfa")?, ValueRef::Bool(true)),
+    ];
+
+    let decision = policy.evaluate(
+        Principal::new("user:alice")?,
+        Action::new("read")?,
+        Resource::new("invoice:123")?,
+        Context::new(&entries)?,
+    )?;
+
+    println!("{decision:?}");
+    Ok(())
+}
+```
+
+## What it is
+
+`gate1` is a continuation of the Gate0 idea, but with a stricter security posture and a more conservative implementation strategy.
+
+The project keeps the same core shape:
+
+```text
+Result<Decision> = evaluate(principal, action, resource, context)
+```
+
+The implementation stays deliberately small and leaves out most of the things that turn policy engines into hard-to-audit runtimes.
+
+## Security posture
+
+The design makes a few opinionated choices.
+
+- **No hidden normalization.** The engine validates identifier syntax (charset and length) and stops there. It does not fold case, collapse path aliases, expand prefixes, or otherwise reconcile equivalent representations. Inputs that are semantically identical but textually different will not match each other.
+- **ASCII-only atoms.** Request and policy strings are restricted to `[a-z0-9._:/-]` and a fixed maximum length.
+- **Typed request inputs.** `Principal`, `Action`, and `Resource` are distinct types instead of plain `&str`.
+- **Bounded evaluation.** Rule count, condition op count, condition depth, context entries, and atom length are capped.
+- **Fail-closed budget.** The budget is a **global unit counter for the entire evaluation pass**, not a per-rule limit. Each selector check (principal, action, resource) costs 1 unit; each condition op costs 1 unit. Consumption is path-dependent — rules whose selectors fail early charge fewer units than rules that reach a full condition program. If the counter reaches zero, evaluation returns `Err(EvaluationBudgetExceeded)` instead of returning an incomplete decision. `Policy::new` computes a worst-case safe ceiling automatically; `Policy::with_budget` is an advanced override for callers who have measured their own workload.
+- **Deterministic deny-overrides.** The first matching deny wins. Allows are remembered and returned only if no deny matches later.
+- **No `unsafe`.** The crate forbids `unsafe_code` and keeps the evaluator on fixed-size stack storage.
+- **Zero heap allocation during evaluation.** Policy construction allocates. `Policy::evaluate*` does not.
+
+## Why this is stricter than Gate0
+
+Gate0's interesting idea is not the absence of allocation by itself. It is the decision to constrain the problem until the implementation becomes reviewable.
+
+`gate1` keeps that discipline and tightens a few edges:
+
+- drops `MaybeUninit` from the hot path in favor of plain stack arrays,
+- rejects invalid identifier syntax and performs no semantic normalization,
+- rejects duplicate context keys,
+- uses an explicit evaluation budget,
+- exposes `DecisionReport` so callers can log which rule matched without allocating an explanation string. `DecisionReport` is for server-side audit logging only; do not forward `matched_rule_name` or `matched_rule_index` to untrusted callers, as they reveal policy structure and can be used to probe rule boundaries.
+
+This is not a framework and not a general-purpose policy language. It is a decision kernel.
+
+## Rule model
+
+A rule contains:
+
+- `effect`: `Allow` or `Deny`
+- `principal` selector: `Any` or `Exact`
+- `action` selector: `Any` or `Exact`
+- `resource` selector: `Any` or `Exact`
+- optional condition program in postfix form
+
+The condition language is intentionally small:
+
+- `AttrPresent`
+- `AttrEqBool`
+- `AttrEqInt`
+- `AttrEqStr`
+- `True`
+- `False`
+- `Not`
+- `And`
+- `Or`
+
+Using postfix form keeps validation and evaluation non-recursive.
+
+## Non-goals
+
+`gate1` does not try to solve:
+
+- distributed policy management,
+- user-friendly policy authoring,
+- pattern matching, regexes, or partial string semantics,
+- external attribute fetching,
+- role expansion,
+- time-based conditions,
+- multi-tenant policy storage,
+- cryptographic attestation of inputs.
+
+Those belong outside the core.
+
+## Testing strategy
+
+The test suite covers:
+
+- allow / deny / no-match paths,
+- duplicate context key rejection,
+- condition depth validation,
+- fail-closed budget exhaustion,
+- zero-allocation request-time evaluation using a counting global allocator.
+
+## Canonicalization contract
+
+Gate1 validates identifier syntax, not identifier meaning. If your system accepts mixed case, alternate numeric encodings, aliases, Unicode forms, or multiple path/resource representations for the same entity, canonicalize those before constructing Gate1 inputs.
+
+**What the engine checks:**
+
+- Characters: `[a-z0-9._:/-]` only; uppercase, Unicode, and whitespace are rejected at construction time.
+- Length: atoms are capped at `MAX_ATOM_LEN` bytes.
+
+**What the engine does not check:**
+
+- Whether two textually distinct atoms refer to the same logical entity.
+- Whether a path, tenant prefix, or legacy ID is an alias for another.
+
+**Examples of inputs that will not match without caller-side canonicalization:**
+
+| Pair | Why they won't match |
+|---|---|
+| `invoice:123` vs `invoice:0123` | leading zero is a different byte sequence |
+| `tenant:acme` vs `acme` | missing prefix |
+| `/data/reports` vs `data/reports` | leading slash differs |
+| `user:alice` vs `user:Alice` | uppercase rejected at construction; callers must lowercase first |
+
+**Security-relevant consequence:**
+
+A `NoMatch` result means no rule in the policy matched the *exact* inputs supplied. It does not mean the requester lacks access in the broader sense. If non-canonical inputs reach the engine — for example, `invoice:0123` when the policy was written for `invoice:123` — the engine will return `NoMatch` and your application may incorrectly infer that access is safe. Canonicalize inputs at the trust boundary, before calling the engine.
+
+This split is deliberate: the kernel stays small, explicit, and easy to audit. Semantic normalization belongs in the layer that understands your identity model.
