@@ -18,7 +18,7 @@ jobs:
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Run tests
-        run: cargo test --all-targets
+        run: cargo test --all-targets -- --test-threads=1
 
   lint:
     name: Formatting & Clippy

@@ -14,7 +14,7 @@ name = "gate1"
 path = "src/lib.rs"
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.4", features = ["html_reports"] }
 
 [[bench]]
 name = "evaluate"
