@@ -94,6 +94,11 @@ impl Selector {
     /// Matching is byte-exact: `"billing:"` matches `"billing:invoice-1"` but not `"Billing:"`.
     /// No normalization is performed.
     ///
+    /// **Safety note:** a bare prefix without a delimiter (e.g. `"billing"`) will match any value
+    /// that starts with those bytes, including `"billingplus:account-7"`. Use a namespaced
+    /// prefix with a trailing delimiter such as `"billing:"` to make the match boundary
+    /// unambiguous.
+    ///
     /// [`MAX_ATOM_LEN`]: crate::atom::MAX_ATOM_LEN
     pub fn prefix(prefix: impl Into<String>) -> Result<Self, Error> {
         Ok(Self::Prefix(OwnedAtom::new(prefix)?))
@@ -393,9 +398,12 @@ impl Policy {
     /// limit. It is shared across every rule tested during a single call to `evaluate` or
     /// `evaluate_with_report`.
     ///
-    /// Each of the following operations consumes **1 unit**:
+    /// Each of the following operations consumes **1 bounded-work unit**:
     ///
     /// - Testing a principal, action, or resource selector (3 units per rule checked).
+    ///   `Exact` performs one comparison; `Prefix` scans up to atom-length bytes;
+    ///   `Set` performs up to [`MAX_SELECTOR_SET`] comparisons. All are bounded, so
+    ///   1 unit per selector check is a conservative but safe accounting.
     /// - Executing one condition op.
     ///
     /// Consumption is **path-dependent**: rules whose selectors fail early charge fewer units

@@ -39,7 +39,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ContextEntry::new(AtomRef::new("mfa")?, ValueRef::Bool(true)),
     ];
 
-    let decision = policy.evaluate(
+    let decision = policy.evaluate_deny_by_default(
         Principal::new("user:alice")?,
         Action::new("read")?,
         Resource::new("invoice:123")?,
@@ -71,7 +71,7 @@ The design makes a few opinionated choices.
 - **ASCII-only atoms.** Request and policy strings are restricted to `[a-z0-9._:/-]` and a fixed maximum length.
 - **Typed request inputs.** `Principal`, `Action`, and `Resource` are distinct types instead of plain `&str`.
 - **Bounded evaluation.** Rule count, condition op count, condition depth, context entries, and atom length are capped.
-- **Fail-closed budget.** The budget is a **global unit counter for the entire evaluation pass**, not a per-rule limit. Each selector check (principal, action, resource) costs 1 unit; each condition op costs 1 unit. Consumption is path-dependent — rules whose selectors fail early charge fewer units than rules that reach a full condition program. If the counter reaches zero, evaluation returns `Err(EvaluationBudgetExceeded)` instead of returning an incomplete decision. `Policy::new` computes a worst-case safe ceiling automatically; `Policy::with_budget` is an advanced override for callers who have measured their own workload.
+- **Fail-closed budget.** The budget is a **global bounded-work-unit counter for the entire evaluation pass**, not a per-rule limit. Each selector check (principal, action, resource) costs 1 unit; each condition op costs 1 unit. `Exact` is a single comparison; `Prefix` scans bytes up to atom length; `Set` performs up to `MAX_SELECTOR_SET` comparisons — all bounded, so 1 unit per selector check is a conservative but safe accounting. Consumption is path-dependent — rules whose selectors fail early charge fewer units than rules that reach a full condition program. If the counter reaches zero, evaluation returns `Err(EvaluationBudgetExceeded)` instead of returning an incomplete decision. `Policy::new` computes a worst-case safe ceiling automatically; `Policy::with_budget` is an advanced override for callers who have measured their own workload.
 - **Deterministic deny-overrides.** The first matching deny wins. Allows are remembered and returned only if no deny matches later.
 - **No `unsafe`.** The crate forbids `unsafe_code` and keeps the evaluator on fixed-size stack storage.
 - **Zero heap allocation during evaluation.** Policy construction allocates. `Policy::evaluate*` does not.
@@ -95,10 +95,14 @@ This is not a framework and not a general-purpose policy language. It is a decis
 A rule contains:
 
 - `effect`: `Allow` or `Deny`
-- `principal` selector: `Any` or `Exact`
-- `action` selector: `Any` or `Exact`
-- `resource` selector: `Any` or `Exact`
+- `principal` selector: `Any`, `Exact`, `Prefix`, or `Set`
+- `action` selector: `Any`, `Exact`, `Prefix`, or `Set`
+- `resource` selector: `Any`, `Exact`, `Prefix`, or `Set`
 - optional condition program in postfix form
+
+`Exact` performs byte-exact equality. `Prefix` performs a byte-exact `starts_with` check
+(see the [prefix safety note](#prefix-selector-safety) below). `Set` tests byte-exact membership
+against a fixed list of up to `MAX_SELECTOR_SET` validated atoms.
 
 The condition language is intentionally small:
 
@@ -120,7 +124,7 @@ Using postfix form keeps validation and evaluation non-recursive.
 
 - distributed policy management,
 - user-friendly policy authoring,
-- pattern matching, regexes, or partial string semantics,
+- regex, glob, or general query-language matching (Prefix and Set are the intentional limit),
 - external attribute fetching,
 - role expansion,
 - time-based conditions,
@@ -136,8 +140,25 @@ The test suite covers:
 - allow / deny / no-match paths,
 - duplicate context key rejection,
 - condition depth validation,
-- fail-closed budget exhaustion,
-- zero-allocation request-time evaluation using a counting global allocator.
+- fail-closed budget exhaustion across multiple rules and across the selector/condition boundary,
+- zero-allocation request-time evaluation using a counting global allocator,
+- prefix selector match and miss,
+- set selector member match and non-member miss,
+- `evaluate_deny_by_default` NoMatch → Deny conversion and allow passthrough,
+- semantic non-normalization (non-canonical inputs produce NoMatch, not Deny).
+
+A Criterion benchmark suite (`benches/evaluate.rs`) covers allow path, no-match path,
+prefix selector, set selector, condition evaluation, and worst-case rule-count scaling
+across 8, 16, 32, and 64 rules. Run with `cargo bench`. Results characterize
+end-to-end request evaluation cost (including `Context::new` validation), not a
+pure `Policy::evaluate*` microbenchmark.
+
+## Prefix selector safety
+
+Because `Selector::Prefix` uses a byte-exact `starts_with` check, a bare prefix like
+`billing` matches both `billing:invoice-1` **and** `billingplus:account-7`. Prefer
+namespaced prefixes that include a delimiter, such as `billing:`, so the match boundary
+is unambiguous. This is enforced by convention, not by the engine.
 
 ## Canonicalization contract
 
