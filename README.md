@@ -149,9 +149,8 @@ The test suite covers:
 
 A Criterion benchmark suite (`benches/evaluate.rs`) covers allow path, no-match path,
 prefix selector, set selector, condition evaluation, and worst-case rule-count scaling
-across 8, 16, 32, and 64 rules. Run with `cargo bench`. Results characterize
-end-to-end request evaluation cost (including `Context::new` validation), not a
-pure `Policy::evaluate*` microbenchmark.
+across 8, 16, 32, and 64 rules. Run with `cargo bench`. Context is pre-built outside
+the timed loops; results measure `Policy::evaluate*` cost directly.
 
 ## Prefix selector safety
 
