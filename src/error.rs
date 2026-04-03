@@ -3,57 +3,22 @@ use core::fmt;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Error {
     EmptyAtom,
-    AtomTooLong {
-        limit: usize,
-        actual: usize,
-    },
-    InvalidAtomChar {
-        index: usize,
-        byte: u8,
-    },
-    TooManyContextEntries {
-        limit: usize,
-        actual: usize,
-    },
-    DuplicateContextKey {
-        first: usize,
-        second: usize,
-    },
+    AtomTooLong { limit: usize, actual: usize },
+    InvalidAtomChar { index: usize, byte: u8 },
+    TooManyContextEntries { limit: usize, actual: usize },
+    DuplicateContextKey { first: usize, second: usize },
     EmptyCondition,
-    TooManyConditionOps {
-        limit: usize,
-        actual: usize,
-    },
-    ConditionStackUnderflow {
-        op_index: usize,
-    },
-    ConditionStackOverflow {
-        limit: usize,
-    },
-    ConditionDepthExceeded {
-        limit: usize,
-        actual: usize,
-    },
-    ConditionDoesNotReduceToSingleValue {
-        remaining: usize,
-    },
-    TooManyRules {
-        limit: usize,
-        actual: usize,
-    },
-    DuplicateRuleName {
-        first: usize,
-        second: usize,
-    },
+    TooManyConditionOps { limit: usize, actual: usize },
+    ConditionStackUnderflow { op_index: usize },
+    ConditionStackOverflow { limit: usize },
+    ConditionDepthExceeded { limit: usize, actual: usize },
+    ConditionDoesNotReduceToSingleValue { remaining: usize },
+    TooManyRules { limit: usize, actual: usize },
+    DuplicateRuleName { first: usize, second: usize },
     ZeroEvaluationBudget,
-    EvaluationBudgetExceeded {
-        limit: u32,
-    },
+    EvaluationBudgetExceeded { limit: u32 },
     EmptySelectorSet,
-    SelectorSetTooLarge {
-        limit: usize,
-        actual: usize,
-    },
+    SelectorSetTooLarge { limit: usize, actual: usize },
 }
 
 impl fmt::Display for Error {
@@ -85,11 +50,9 @@ impl fmt::Display for Error {
             Self::ConditionStackOverflow { limit } => {
                 write!(f, "condition stack exceeds limit {}", limit)
             }
-            Self::ConditionDepthExceeded { limit, actual } => write!(
-                f,
-                "condition depth {} exceeds limit {}",
-                actual, limit
-            ),
+            Self::ConditionDepthExceeded { limit, actual } => {
+                write!(f, "condition depth {} exceeds limit {}", actual, limit)
+            }
             Self::ConditionDoesNotReduceToSingleValue { remaining } => write!(
                 f,
                 "condition program must reduce to one value; {} values remain",

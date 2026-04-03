@@ -89,7 +89,10 @@ mod tests {
 
         assert!(matches!(
             Context::new(&entries),
-            Err(Error::DuplicateContextKey { first: 0, second: 1 })
+            Err(Error::DuplicateContextKey {
+                first: 0,
+                second: 1
+            })
         ));
     }
 }

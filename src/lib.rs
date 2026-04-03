@@ -38,6 +38,6 @@ pub use atom::{Action, AtomRef, OwnedAtom, Principal, Resource, MAX_ATOM_LEN};
 pub use context::{Context, ContextEntry, OwnedValue, ValueRef, MAX_CONTEXT_ENTRIES};
 pub use error::Error;
 pub use policy::{
-    ConditionOp, ConditionProgram, Decision, DecisionReport, Effect, Policy, Rule,
-    Selector, MAX_CONDITION_DEPTH, MAX_CONDITION_OPS, MAX_RULES, MAX_SELECTOR_SET,
+    ConditionOp, ConditionProgram, Decision, DecisionReport, Effect, Policy, Rule, Selector,
+    MAX_CONDITION_DEPTH, MAX_CONDITION_OPS, MAX_RULES, MAX_SELECTOR_SET,
 };

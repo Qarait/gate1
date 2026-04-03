@@ -1,21 +1,19 @@
 use gate1::{
-    Action, ConditionOp, ConditionProgram, Context, ContextEntry, Decision, Policy, Principal,
-    Resource, Rule, ValueRef, AtomRef,
+    Action, AtomRef, ConditionOp, ConditionProgram, Context, ContextEntry, Decision, Policy,
+    Principal, Resource, Rule, ValueRef,
 };
 
 #[test]
 fn allow_path() {
-    let policy = Policy::new(vec![
-        Rule::allow("allow_billing_read")
-            .unwrap()
-            .principal_exact("user:alice")
-            .unwrap()
-            .action_exact("read")
-            .unwrap()
-            .resource_exact("billing:invoice-7")
-            .unwrap()
-            .build(),
-    ])
+    let policy = Policy::new(vec![Rule::allow("allow_billing_read")
+        .unwrap()
+        .principal_exact("user:alice")
+        .unwrap()
+        .action_exact("read")
+        .unwrap()
+        .resource_exact("billing:invoice-7")
+        .unwrap()
+        .build()])
     .unwrap();
 
     let decision = policy
@@ -69,13 +67,11 @@ fn deny_path() {
 
 #[test]
 fn no_match_path() {
-    let policy = Policy::new(vec![
-        Rule::allow("allow_write")
-            .unwrap()
-            .action_exact("write")
-            .unwrap()
-            .build(),
-    ])
+    let policy = Policy::new(vec![Rule::allow("allow_write")
+        .unwrap()
+        .action_exact("write")
+        .unwrap()
+        .build()])
     .unwrap();
 
     let decision = policy
@@ -104,13 +100,11 @@ fn no_match_path() {
 #[test]
 fn non_canonical_resource_does_not_match() {
     // Policy allows reading the canonical resource identifier.
-    let policy = Policy::new(vec![
-        Rule::allow("allow_invoice_read")
-            .unwrap()
-            .resource_exact("invoice:123")
-            .unwrap()
-            .build(),
-    ])
+    let policy = Policy::new(vec![Rule::allow("allow_invoice_read")
+        .unwrap()
+        .resource_exact("invoice:123")
+        .unwrap()
+        .build()])
     .unwrap();
 
     // Request arrives with a non-canonical form (leading zero).
@@ -132,13 +126,11 @@ fn non_canonical_resource_does_not_match() {
 fn prefix_selector_matches_namespace() {
     // A single rule covering the "billing:" namespace via Selector::Prefix.
     // Any resource beginning with "billing:" should match; others should not.
-    let policy = Policy::new(vec![
-        Rule::allow("allow_billing_namespace")
-            .unwrap()
-            .resource_prefix("billing:")
-            .unwrap()
-            .build(),
-    ])
+    let policy = Policy::new(vec![Rule::allow("allow_billing_namespace")
+        .unwrap()
+        .resource_prefix("billing:")
+        .unwrap()
+        .build()])
     .unwrap();
 
     // ── match: resource inside the namespace ──────────────────────────────
@@ -167,13 +159,11 @@ fn prefix_selector_matches_namespace() {
 #[test]
 fn set_selector_matches_members_only() {
     // A single rule allowing only "read" and "list" actions.
-    let policy = Policy::new(vec![
-        Rule::allow("allow_rw")
-            .unwrap()
-            .action_set(vec!["read", "list"])
-            .unwrap()
-            .build(),
-    ])
+    let policy = Policy::new(vec![Rule::allow("allow_rw")
+        .unwrap()
+        .action_set(vec!["read", "list"])
+        .unwrap()
+        .build()])
     .unwrap();
 
     // ── match: "read" is in the set ───────────────────────────────────────
@@ -203,13 +193,11 @@ fn set_selector_matches_members_only() {
 fn evaluate_deny_by_default_converts_no_match_to_deny() {
     // Policy only allows "write"; "read" has no matching rule.
     // evaluate() → NoMatch; evaluate_deny_by_default() → Deny.
-    let policy = Policy::new(vec![
-        Rule::allow("allow_write")
-            .unwrap()
-            .action_exact("write")
-            .unwrap()
-            .build(),
-    ])
+    let policy = Policy::new(vec![Rule::allow("allow_write")
+        .unwrap()
+        .action_exact("write")
+        .unwrap()
+        .build()])
     .unwrap();
 
     let raw = policy

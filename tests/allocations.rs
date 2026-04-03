@@ -78,10 +78,7 @@ fn deny_decision_path_is_zero_alloc() {
         .action_exact("write")
         .unwrap()
         .condition(
-            ConditionProgram::new(vec![
-                ConditionOp::attr_eq_bool("mfa", false).unwrap(),
-            ])
-            .unwrap(),
+            ConditionProgram::new(vec![ConditionOp::attr_eq_bool("mfa", false).unwrap()]).unwrap(),
         )
         .build();
     let policy = Policy::new(vec![rule]).unwrap();
@@ -108,13 +105,11 @@ fn deny_decision_path_is_zero_alloc() {
 
 #[test]
 fn no_match_path_is_zero_alloc() {
-    let policy = Policy::new(vec![
-        Rule::allow("allow_delete")
-            .unwrap()
-            .action_exact("delete")
-            .unwrap()
-            .build(),
-    ])
+    let policy = Policy::new(vec![Rule::allow("allow_delete")
+        .unwrap()
+        .action_exact("delete")
+        .unwrap()
+        .build()])
     .unwrap();
     let context = Context::new(&[]).unwrap();
 
@@ -135,23 +130,21 @@ fn no_match_path_is_zero_alloc() {
 
 #[test]
 fn condition_path_is_zero_alloc() {
-    let policy = Policy::new(vec![
-        Rule::allow("allow_billing_admin")
-            .unwrap()
-            .action_exact("approve")
-            .unwrap()
-            .resource_exact("billing:monthly-close")
-            .unwrap()
-            .condition(
-                ConditionProgram::new(vec![
-                    ConditionOp::attr_eq_str("tenant", "acme").unwrap(),
-                    ConditionOp::attr_eq_bool("mfa", true).unwrap(),
-                    ConditionOp::and(),
-                ])
-                .unwrap(),
-            )
-            .build(),
-    ])
+    let policy = Policy::new(vec![Rule::allow("allow_billing_admin")
+        .unwrap()
+        .action_exact("approve")
+        .unwrap()
+        .resource_exact("billing:monthly-close")
+        .unwrap()
+        .condition(
+            ConditionProgram::new(vec![
+                ConditionOp::attr_eq_str("tenant", "acme").unwrap(),
+                ConditionOp::attr_eq_bool("mfa", true).unwrap(),
+                ConditionOp::and(),
+            ])
+            .unwrap(),
+        )
+        .build()])
     .unwrap();
 
     let entries = [

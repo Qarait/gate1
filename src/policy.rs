@@ -170,10 +170,7 @@ impl ConditionOp {
         })
     }
 
-    pub fn attr_eq_str(
-        key: impl Into<String>,
-        value: impl Into<String>,
-    ) -> Result<Self, Error> {
+    pub fn attr_eq_str(key: impl Into<String>, value: impl Into<String>) -> Result<Self, Error> {
         Ok(Self::AttrEqStr {
             key: OwnedAtom::new(key)?,
             value: OwnedAtom::new(value)?,

@@ -143,8 +143,14 @@ mod tests {
 
     #[test]
     fn atom_rejects_uppercase_and_unicode() {
-        assert!(matches!(AtomRef::new("Admin"), Err(Error::InvalidAtomChar { .. })));
-        assert!(matches!(AtomRef::new("münchen"), Err(Error::InvalidAtomChar { .. })));
+        assert!(matches!(
+            AtomRef::new("Admin"),
+            Err(Error::InvalidAtomChar { .. })
+        ));
+        assert!(matches!(
+            AtomRef::new("münchen"),
+            Err(Error::InvalidAtomChar { .. })
+        ));
     }
 
     #[test]
