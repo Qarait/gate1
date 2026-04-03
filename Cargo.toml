@@ -9,3 +9,10 @@ rust-version = "1.74"
 [lib]
 name = "gate1"
 path = "src/lib.rs"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "evaluate"
+harness = false

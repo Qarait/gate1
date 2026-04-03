@@ -49,6 +49,11 @@ pub enum Error {
     EvaluationBudgetExceeded {
         limit: u32,
     },
+    EmptySelectorSet,
+    SelectorSetTooLarge {
+        limit: usize,
+        actual: usize,
+    },
 }
 
 impl fmt::Display for Error {
@@ -101,6 +106,10 @@ impl fmt::Display for Error {
             Self::ZeroEvaluationBudget => write!(f, "evaluation budget must be greater than zero"),
             Self::EvaluationBudgetExceeded { limit } => {
                 write!(f, "evaluation budget exhausted (limit {})", limit)
+            }
+            Self::EmptySelectorSet => write!(f, "selector set must not be empty"),
+            Self::SelectorSetTooLarge { limit, actual } => {
+                write!(f, "selector set size {} exceeds limit {}", actual, limit)
             }
         }
     }

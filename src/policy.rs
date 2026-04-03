@@ -5,6 +5,8 @@ use crate::error::Error;
 pub const MAX_RULES: usize = 64;
 pub const MAX_CONDITION_OPS: usize = 32;
 pub const MAX_CONDITION_DEPTH: usize = 8;
+/// Maximum number of values in a [`Selector::Set`]. Keeps set iteration bounded during evaluation.
+pub const MAX_SELECTOR_SET: usize = 16;
 const MAX_CONDITION_STACK: usize = MAX_CONDITION_OPS;
 
 /// The intended outcome of a rule: permit or deny access.
@@ -55,15 +57,20 @@ pub struct DecisionReport<'a> {
 
 /// Matches a request field against a policy expectation.
 ///
-/// `Any` matches every value. `Exact` performs **byte-exact** comparison after validating
-/// the stored value's syntax at construction time. No case folding or semantic normalization
-/// is performed.
+/// `Any` matches every value. `Exact` and `Prefix` validate the stored value's syntax at
+/// construction time. No case folding or semantic normalization is performed by any variant.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Selector {
     /// Matches any value unconditionally.
     Any,
     /// Matches one specific, syntax-validated identifier. Comparison is byte-exact.
     Exact(OwnedAtom),
+    /// Matches any value that starts with the stored prefix string. Byte-exact prefix check;
+    /// no normalization is performed.
+    Prefix(OwnedAtom),
+    /// Matches any value that is a member of a fixed, syntax-validated set.
+    /// The set is bounded by [`MAX_SELECTOR_SET`]. Membership is checked by byte-exact equality.
+    Set(Vec<OwnedAtom>),
 }
 
 impl Selector {
@@ -81,10 +88,45 @@ impl Selector {
         Ok(Self::Exact(OwnedAtom::new(value)?))
     }
 
+    /// Creates a selector that matches any value beginning with `prefix`.
+    ///
+    /// `prefix` is syntax-validated (charset `[a-z0-9._:/-]`, max [`MAX_ATOM_LEN`] bytes).
+    /// Matching is byte-exact: `"billing:"` matches `"billing:invoice-1"` but not `"Billing:"`.
+    /// No normalization is performed.
+    ///
+    /// [`MAX_ATOM_LEN`]: crate::atom::MAX_ATOM_LEN
+    pub fn prefix(prefix: impl Into<String>) -> Result<Self, Error> {
+        Ok(Self::Prefix(OwnedAtom::new(prefix)?))
+    }
+
+    /// Creates a selector that matches any value in the given set.
+    ///
+    /// Each element is syntax-validated at construction time. The set must be non-empty and
+    /// may contain at most [`MAX_SELECTOR_SET`] elements. Membership is tested by byte-exact
+    /// equality; no normalization is performed.
+    pub fn set(values: Vec<impl Into<String>>) -> Result<Self, Error> {
+        if values.is_empty() {
+            return Err(Error::EmptySelectorSet);
+        }
+        if values.len() > MAX_SELECTOR_SET {
+            return Err(Error::SelectorSetTooLarge {
+                limit: MAX_SELECTOR_SET,
+                actual: values.len(),
+            });
+        }
+        let atoms = values
+            .into_iter()
+            .map(|v| OwnedAtom::new(v))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self::Set(atoms))
+    }
+
     fn matches(&self, candidate: AtomRef<'_>) -> bool {
         match self {
             Self::Any => true,
             Self::Exact(expected) => expected.as_atom() == candidate,
+            Self::Prefix(prefix) => candidate.as_str().starts_with(prefix.as_str()),
+            Self::Set(set) => set.iter().any(|item| item.as_atom() == candidate),
         }
     }
 }
@@ -252,6 +294,16 @@ impl RuleBuilder {
         Ok(self)
     }
 
+    pub fn principal_prefix(mut self, prefix: impl Into<String>) -> Result<Self, Error> {
+        self.principal = Selector::prefix(prefix)?;
+        Ok(self)
+    }
+
+    pub fn principal_set(mut self, values: Vec<impl Into<String>>) -> Result<Self, Error> {
+        self.principal = Selector::set(values)?;
+        Ok(self)
+    }
+
     pub fn action_any(mut self) -> Self {
         self.action = Selector::Any;
         self
@@ -262,6 +314,16 @@ impl RuleBuilder {
         Ok(self)
     }
 
+    pub fn action_prefix(mut self, prefix: impl Into<String>) -> Result<Self, Error> {
+        self.action = Selector::prefix(prefix)?;
+        Ok(self)
+    }
+
+    pub fn action_set(mut self, values: Vec<impl Into<String>>) -> Result<Self, Error> {
+        self.action = Selector::set(values)?;
+        Ok(self)
+    }
+
     pub fn resource_any(mut self) -> Self {
         self.resource = Selector::Any;
         self
@@ -269,6 +331,16 @@ impl RuleBuilder {
 
     pub fn resource_exact(mut self, value: impl Into<String>) -> Result<Self, Error> {
         self.resource = Selector::exact(value)?;
+        Ok(self)
+    }
+
+    pub fn resource_prefix(mut self, prefix: impl Into<String>) -> Result<Self, Error> {
+        self.resource = Selector::prefix(prefix)?;
+        Ok(self)
+    }
+
+    pub fn resource_set(mut self, values: Vec<impl Into<String>>) -> Result<Self, Error> {
+        self.resource = Selector::set(values)?;
         Ok(self)
     }
 
@@ -367,6 +439,26 @@ impl Policy {
         Ok(self
             .evaluate_with_report(principal, action, resource, context)?
             .decision)
+    }
+
+    /// Evaluates the policy and converts [`Decision::NoMatch`] to [`Decision::Deny`].
+    ///
+    /// This is the **recommended entry point for most applications**. A `NoMatch` result means
+    /// the policy had no opinion; treating it as `Allow` would be fail-open. This method makes
+    /// the safe default explicit so callers do not have to remember to handle `NoMatch` themselves.
+    ///
+    /// The result is either `Ok(Allow)`, `Ok(Deny)`, or `Err(...)`. `NoMatch` is never returned.
+    pub fn evaluate_deny_by_default(
+        &self,
+        principal: Principal<'_>,
+        action: Action<'_>,
+        resource: Resource<'_>,
+        context: Context<'_>,
+    ) -> Result<Decision, Error> {
+        match self.evaluate(principal, action, resource, context)? {
+            Decision::NoMatch => Ok(Decision::Deny),
+            other => Ok(other),
+        }
     }
 
     pub fn evaluate_with_report<'a>(

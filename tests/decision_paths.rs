@@ -127,3 +127,123 @@ fn non_canonical_resource_does_not_match() {
     // This must not be interpreted as proof that access is denied or safe.
     assert_eq!(decision, Decision::NoMatch);
 }
+
+#[test]
+fn prefix_selector_matches_namespace() {
+    // A single rule covering the "billing:" namespace via Selector::Prefix.
+    // Any resource beginning with "billing:" should match; others should not.
+    let policy = Policy::new(vec![
+        Rule::allow("allow_billing_namespace")
+            .unwrap()
+            .resource_prefix("billing:")
+            .unwrap()
+            .build(),
+    ])
+    .unwrap();
+
+    // ── match: resource inside the namespace ──────────────────────────────
+    let allow = policy
+        .evaluate(
+            Principal::new("user:alice").unwrap(),
+            Action::new("read").unwrap(),
+            Resource::new("billing:invoice-99").unwrap(),
+            Context::new(&[]).unwrap(),
+        )
+        .unwrap();
+    assert_eq!(allow, Decision::Allow);
+
+    // ── miss: resource outside the namespace ──────────────────────────────
+    let miss = policy
+        .evaluate(
+            Principal::new("user:alice").unwrap(),
+            Action::new("read").unwrap(),
+            Resource::new("reporting:summary").unwrap(),
+            Context::new(&[]).unwrap(),
+        )
+        .unwrap();
+    assert_eq!(miss, Decision::NoMatch);
+}
+
+#[test]
+fn set_selector_matches_members_only() {
+    // A single rule allowing only "read" and "list" actions.
+    let policy = Policy::new(vec![
+        Rule::allow("allow_rw")
+            .unwrap()
+            .action_set(vec!["read", "list"])
+            .unwrap()
+            .build(),
+    ])
+    .unwrap();
+
+    // ── match: "read" is in the set ───────────────────────────────────────
+    let allow = policy
+        .evaluate(
+            Principal::new("user:alice").unwrap(),
+            Action::new("read").unwrap(),
+            Resource::new("doc:1").unwrap(),
+            Context::new(&[]).unwrap(),
+        )
+        .unwrap();
+    assert_eq!(allow, Decision::Allow);
+
+    // ── miss: "delete" is not in the set ─────────────────────────────────
+    let miss = policy
+        .evaluate(
+            Principal::new("user:alice").unwrap(),
+            Action::new("delete").unwrap(),
+            Resource::new("doc:1").unwrap(),
+            Context::new(&[]).unwrap(),
+        )
+        .unwrap();
+    assert_eq!(miss, Decision::NoMatch);
+}
+
+#[test]
+fn evaluate_deny_by_default_converts_no_match_to_deny() {
+    // Policy only allows "write"; "read" has no matching rule.
+    // evaluate() → NoMatch; evaluate_deny_by_default() → Deny.
+    let policy = Policy::new(vec![
+        Rule::allow("allow_write")
+            .unwrap()
+            .action_exact("write")
+            .unwrap()
+            .build(),
+    ])
+    .unwrap();
+
+    let raw = policy
+        .evaluate(
+            Principal::new("user:alice").unwrap(),
+            Action::new("read").unwrap(),
+            Resource::new("doc:1").unwrap(),
+            Context::new(&[]).unwrap(),
+        )
+        .unwrap();
+    assert_eq!(raw, Decision::NoMatch);
+
+    let safe = policy
+        .evaluate_deny_by_default(
+            Principal::new("user:alice").unwrap(),
+            Action::new("read").unwrap(),
+            Resource::new("doc:1").unwrap(),
+            Context::new(&[]).unwrap(),
+        )
+        .unwrap();
+    assert_eq!(safe, Decision::Deny);
+}
+
+#[test]
+fn evaluate_deny_by_default_passes_through_allow() {
+    let policy = Policy::new(vec![Rule::allow("allow_all").unwrap().build()]).unwrap();
+
+    let decision = policy
+        .evaluate_deny_by_default(
+            Principal::new("user:alice").unwrap(),
+            Action::new("read").unwrap(),
+            Resource::new("doc:1").unwrap(),
+            Context::new(&[]).unwrap(),
+        )
+        .unwrap();
+    assert_eq!(decision, Decision::Allow);
+}
