@@ -152,6 +152,10 @@ prefix selector, set selector, condition evaluation, and worst-case rule-count s
 across 8, 16, 32, and 64 rules. Run with `cargo bench`. Context is pre-built outside
 the timed loops; results measure `Policy::evaluate*` cost directly.
 
+## MSRV (Minimum Supported Rust Version)
+
+Gate1's published library target is guaranteed to compile on rustc 1.74.0. Note that this MSRV claim applies *strictly to the library crate*. Because benchmarking and testing tools frequently bump their own compiler requirements, compiling the full repository (including tests, benches, and all `[dev-dependencies]`) may require a newer Rust toolchain.
+
 ## Prefix selector safety
 
 Because `Selector::Prefix` uses a byte-exact `starts_with` check, a bare prefix like
