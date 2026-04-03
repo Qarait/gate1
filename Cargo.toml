@@ -5,6 +5,9 @@ edition = "2021"
 description = "Small, deterministic authorization kernel with bounded evaluation"
 license = "MIT"
 rust-version = "1.74"
+repository = "https://github.com/Qarait/gate1"
+readme = "README.md"
+keywords = ["authorization", "policy", "security", "access-control"]
 
 [lib]
 name = "gate1"
