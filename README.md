@@ -65,15 +65,14 @@ The evaluation model is built to ensure predictable execution and reviewable log
 
 The crate intentionally keeps the rule model minimal (`Any`, `Exact`, `Prefix`, and `Set` matching).
 
-## Non-goals
+## Scope
 
-`gate1` is a decision kernel, not a full-stack authorization framework. It does not try to solve:
+Gate1 establishes the execution boundary for authorization. It takes a pre-compiled policy, a flat array of context variables, and a discrete request, then returns a deterministic, zero-allocation result.
 
-- distributed policy management or storage,
-- user-friendly policy authoring dialects,
-- attribute fetching (callers must fully populate the context),
-- regex, glob, or general query-language matching,
-- role expansion or multi-tenant abstractions.
+Because it operates strictly as a decision kernel, it intentionally avoids:
+- **Semantic normalization:** Callers must canonicalize identifiers (e.g., aliases, aliased paths) at their own trust boundary.
+- **External attribute fetching:** Callers must independently populate the evaluation context before requesting a decision.
+- **Dynamic policy dialects:** Callers construct bindings and conditions natively in Rust.
 
 ## Security & Release Notes
 
