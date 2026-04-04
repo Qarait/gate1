@@ -70,6 +70,8 @@ The crate intentionally keeps the rule model minimal (`Any`, `Exact`, `Prefix`, 
 
 ## Scope
 
+The goal is to constrain the authorization problem until the implementation becomes small enough to audit and reason about completely.
+
 Gate1 establishes the execution boundary for authorization. It takes a pre-compiled policy, a flat array of context variables, and a discrete request, then returns a deterministic, zero-allocation result.
 
 Because it operates strictly as an evaluator, it intentionally avoids:
