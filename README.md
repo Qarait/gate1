@@ -1,6 +1,6 @@
 # gate1
 
-`gate1` is a small Rust authorization engine for bounded, deterministic request-time policy decisions.
+`gate1` is a small Rust authorization kernel: it evaluates policies, not how policies are created, stored, or distributed.
 Policies are validated at construction time. Evaluation performs no heap allocation and fails closed if its bounded work budget is exceeded.
 
 `gate1` is intentionally narrow. It does not provide policy distribution, role expansion, external attribute fetching, regex/glob matching, or time-based logic.
