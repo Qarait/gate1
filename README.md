@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## What it is
 
-`gate1` is a continuation of the Gate0 idea, but with a stricter security posture and a more conservative implementation strategy.
+`gate1` is a small Rust library for bounded authorization checks. Policies are validated at construction; evaluation is deterministic and does not allocate.
 
 The project keeps the same core shape:
 
@@ -61,7 +61,7 @@ The project keeps the same core shape:
 Result<Decision> = evaluate(principal, action, resource, context)
 ```
 
-The implementation stays deliberately small and leaves out most of the things that turn policy engines into hard-to-audit runtimes.
+The implementation stays deliberately small to remain straightforward to audit.
 
 ## Security posture
 
@@ -76,11 +76,9 @@ The design makes a few opinionated choices.
 - **No `unsafe`.** The crate forbids `unsafe_code` and keeps the evaluator on fixed-size stack storage.
 - **Zero heap allocation during evaluation.** Policy construction allocates. `Policy::evaluate*` does not.
 
-## Why this is stricter than Gate0
+## Design limits
 
-Gate0's interesting idea is not the absence of allocation by itself. It is the decision to constrain the problem until the implementation becomes reviewable.
-
-`gate1` keeps that discipline and tightens a few edges:
+The primary goal is to constrain the authorization problem until the implementation becomes reviewable. To maintain this discipline, the library:
 
 - drops `MaybeUninit` from the hot path in favor of plain stack arrays,
 - rejects invalid identifier syntax and performs no semantic normalization,
@@ -88,7 +86,7 @@ Gate0's interesting idea is not the absence of allocation by itself. It is the d
 - uses an explicit evaluation budget,
 - exposes `DecisionReport` so callers can log which rule matched without allocating an explanation string. `DecisionReport` is for server-side audit logging only; do not forward `matched_rule_name` or `matched_rule_index` to untrusted callers, as they reveal policy structure and can be used to probe rule boundaries.
 
-This is not a framework and not a general-purpose policy language. It is a decision kernel.
+The crate intentionally supports a small rule model and leaves policy management outside the library.
 
 ## Rule model
 
