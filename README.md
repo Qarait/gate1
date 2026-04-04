@@ -7,6 +7,8 @@ Most authorization systems grow into complex, stateful platforms that are diffic
 
 `gate1` is intentionally narrow. It does not provide policy distribution, role expansion, external attribute fetching, regex/glob matching, or time-based logic.
 
+Gate1 is the stricter follow-up to Gate0: it keeps the same bounded decision model, but narrows the library to a smaller Rust-only core with typed inputs, no unsafe, and explicit fail-closed evaluation limits.
+
 ## Example
 
 ```rust
