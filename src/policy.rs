@@ -34,23 +34,14 @@ pub enum Decision {
 
 /// The outcome of a policy evaluation, including which rule matched.
 ///
-/// `DecisionReport` is intended for **internal audit logging and debugging only**.
-/// Do not expose it, or any of its fields, to untrusted callers.
-///
-/// `matched_rule_name` and `matched_rule_index` reveal the internal structure of your policy.
-/// A requester who can observe which rule fired — or infer it from an error or side-channel —
-/// can probe the policy to discover rule boundaries and craft inputs that land in a desired branch.
+/// For internal logging only. Exposing matched rule metadata leaks policy structure.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DecisionReport<'a> {
     /// The final allow/deny/no-match verdict.
     pub decision: Decision,
-    /// Index of the matched rule within the policy's rule list.
-    ///
-    /// **Do not return to untrusted callers.** Rule indices reveal policy structure and order.
+    /// Index of the matched rule.
     pub matched_rule_index: Option<usize>,
-    /// Name of the matched rule as supplied at construction time.
-    ///
-    /// **Do not return to untrusted callers.** Rule names reveal policy structure and intent.
+    /// Name of the matched rule.
     pub matched_rule_name: Option<&'a str>,
 }
 
@@ -382,31 +373,10 @@ impl Policy {
 
     /// Constructs a policy with an explicit evaluation budget.
     ///
-    /// **This is an advanced API.** Most callers should use [`Policy::new`], which computes a
-    /// safe worst-case budget automatically.
+    /// Most callers should use [`Policy::new`], which computes a safe budget automatically.
     ///
-    /// # Budget semantics
-    ///
-    /// The budget is a **global unit counter for the entire evaluation pass**, not a per-rule
-    /// limit. It is shared across every rule tested during a single call to `evaluate` or
-    /// `evaluate_with_report`.
-    ///
-    /// Each of the following operations consumes **1 bounded-work unit**:
-    ///
-    /// - Testing a principal, action, or resource selector (3 units per rule checked).
-    ///   `Exact` performs one comparison; `Prefix` scans up to atom-length bytes;
-    ///   `Set` performs up to [`MAX_SELECTOR_SET`] comparisons. All are bounded, so
-    ///   1 unit per selector check is a conservative but safe accounting.
-    /// - Executing one condition op.
-    ///
-    /// Consumption is **path-dependent**: rules whose selectors fail early charge fewer units
-    /// than rules whose conditions are fully evaluated. In the worst case every rule matches all
-    /// three selectors and evaluates its full condition program.
-    ///
-    /// If the budget is exhausted before evaluation completes, `evaluate` returns
-    /// [`Error::EvaluationBudgetExceeded`] rather than returning a potentially incomplete
-    /// decision. Setting `max_eval_units` too low can cause spurious budget errors on valid
-    /// requests; setting it too high weakens the fail-closed guarantee.
+    /// Global evaluation budget for one request. Selector checks and condition ops each consume
+    /// one bounded work unit. Exhausting the budget returns [`Error::EvaluationBudgetExceeded`].
     ///
     /// [`Error::EvaluationBudgetExceeded`]: crate::error::Error::EvaluationBudgetExceeded
     pub fn with_budget(rules: Vec<Rule>, max_eval_units: u32) -> Result<Self, Error> {
@@ -442,13 +412,9 @@ impl Policy {
             .decision)
     }
 
-    /// Evaluates the policy and converts [`Decision::NoMatch`] to [`Decision::Deny`].
+    /// Evaluates the policy, dropping any [`Decision::NoMatch`] in favor of [`Decision::Deny`].
     ///
-    /// This is the **recommended entry point for most applications**. It explicitly enforces
-    /// a safe fallback to prevent mapping errors when policies have no opinion (`NoMatch`).
-    /// See `docs/SECURITY.md` for fail-open risks.
-    ///
-    /// The result is either `Ok(Allow)`, `Ok(Deny)`, or `Err(...)`. `NoMatch` is never returned.
+    /// Enforces a safe default. The result is either `Ok(Allow)`, `Ok(Deny)`, or `Err(...)`.
     pub fn evaluate_deny_by_default(
         &self,
         principal: Principal<'_>,
