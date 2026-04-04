@@ -1,19 +1,12 @@
 #![forbid(unsafe_code)]
 
-//! Gate1 is a small, deterministic authorization kernel.
+//! Bounded authorization evaluation for Rust.
 //!
-//! Design goals:
-//! - bounded evaluation
-//! - zero heap allocation during `Policy::evaluate*`
-//! - explicit, auditable matching semantics
-//! - no hidden normalization
-//! - small enough to read end-to-end
+//! Policies are validated at construction time. Evaluation is deterministic,
+//! allocation-free, and byte-exact.
 //!
-//! Gate1 deliberately avoids regexes, globbing, recursive AST walking, dynamic policy loading,
-//! and implicit string normalization. Construction can allocate; evaluation does not.
-//!
-//! See `docs/SECURITY.md` for complete security guarantees, canonicalization contracts,
-//! and evaluation limits.
+//! Callers must canonicalize identifiers before constructing Gate1 inputs.
+//! See `docs/SECURITY.md` for explicit API contracts and evaluation limits.
 
 pub mod atom;
 pub mod context;
