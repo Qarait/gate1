@@ -14,7 +14,7 @@ jobs:
     name: Test Suite
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Run compilation
@@ -26,7 +26,7 @@ jobs:
     name: Formatting & Clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install stable toolchain with components
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -40,7 +40,7 @@ jobs:
     name: MSRV (Rust 1.74)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install MSRV toolchain
         uses: dtolnay/rust-toolchain@1.74.0
       - name: Remove dev-dependencies to bypass MSRV locker issues
