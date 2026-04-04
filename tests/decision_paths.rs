@@ -86,28 +86,16 @@ fn no_match_path() {
     assert_eq!(decision, Decision::NoMatch);
 }
 
-// Gate1 performs exact byte comparison of identifiers. It does not normalise
-// leading zeros, aliases, path variants, or any other alternate representations.
-// Canonicalisation is entirely the caller's responsibility.
-//
-// This test demonstrates the failure mode: a policy written for "invoice:123"
-// does not match a request carrying "invoice:0123", even though the caller's
-// system may treat those as the same resource. The result is NoMatch, not Deny.
-// An application that interprets NoMatch as "access is safe" would be wrong.
-//
-// The fix belongs in the layer that constructs Gate1 inputs: strip leading zeros
-// (or whatever normalisation the system requires) before calling Policy::evaluate.
+// exact byte match only; canonicalization happens upstream
 #[test]
-fn non_canonical_resource_does_not_match() {
-    // Policy allows reading the canonical resource identifier.
+fn non_canonical_resource_yields_no_match() {
     let policy = Policy::new(vec![Rule::allow("allow_invoice_read")
         .unwrap()
         .resource_exact("invoice:123")
         .unwrap()
         .build()])
+        .build()])
     .unwrap();
-
-    // Request arrives with a non-canonical form (leading zero).
     let decision = policy
         .evaluate(
             Principal::new("user:alice").unwrap(),
@@ -117,15 +105,11 @@ fn non_canonical_resource_does_not_match() {
         )
         .unwrap();
 
-    // NoMatch — not Deny. The rule exists but the identifier did not match.
-    // This must not be interpreted as proof that access is denied or safe.
     assert_eq!(decision, Decision::NoMatch);
 }
 
 #[test]
 fn prefix_selector_matches_namespace() {
-    // A single rule covering the "billing:" namespace via Selector::Prefix.
-    // Any resource beginning with "billing:" should match; others should not.
     let policy = Policy::new(vec![Rule::allow("allow_billing_namespace")
         .unwrap()
         .resource_prefix("billing:")
@@ -133,7 +117,6 @@ fn prefix_selector_matches_namespace() {
         .build()])
     .unwrap();
 
-    // ── match: resource inside the namespace ──────────────────────────────
     let allow = policy
         .evaluate(
             Principal::new("user:alice").unwrap(),
@@ -144,7 +127,6 @@ fn prefix_selector_matches_namespace() {
         .unwrap();
     assert_eq!(allow, Decision::Allow);
 
-    // ── miss: resource outside the namespace ──────────────────────────────
     let miss = policy
         .evaluate(
             Principal::new("user:alice").unwrap(),
@@ -158,7 +140,6 @@ fn prefix_selector_matches_namespace() {
 
 #[test]
 fn set_selector_matches_members_only() {
-    // A single rule allowing only "read" and "list" actions.
     let policy = Policy::new(vec![Rule::allow("allow_rw")
         .unwrap()
         .action_set(vec!["read", "list"])
@@ -166,7 +147,6 @@ fn set_selector_matches_members_only() {
         .build()])
     .unwrap();
 
-    // ── match: "read" is in the set ───────────────────────────────────────
     let allow = policy
         .evaluate(
             Principal::new("user:alice").unwrap(),
@@ -177,7 +157,6 @@ fn set_selector_matches_members_only() {
         .unwrap();
     assert_eq!(allow, Decision::Allow);
 
-    // ── miss: "delete" is not in the set ─────────────────────────────────
     let miss = policy
         .evaluate(
             Principal::new("user:alice").unwrap(),
@@ -191,8 +170,6 @@ fn set_selector_matches_members_only() {
 
 #[test]
 fn evaluate_deny_by_default_converts_no_match_to_deny() {
-    // Policy only allows "write"; "read" has no matching rule.
-    // evaluate() → NoMatch; evaluate_deny_by_default() → Deny.
     let policy = Policy::new(vec![Rule::allow("allow_write")
         .unwrap()
         .action_exact("write")
