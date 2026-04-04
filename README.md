@@ -1,8 +1,8 @@
 # gate1
 
-`gate1` is a small authorization kernel for Rust.
+`gate1` is a small Rust library for bounded authorization checks. Policies are validated at construction; evaluation is deterministic and does not allocate.
 
-It is intentionally narrow in scope: build a policy once, validate it up front, then evaluate request-time decisions with deterministic, bounded behavior.
+## Example
 
 ```rust
 use gate1::{
@@ -51,91 +51,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-## What it is
+## Guarantees
 
-`gate1` is a small Rust library for bounded authorization checks. Policies are validated at construction; evaluation is deterministic and does not allocate.
+The evaluation model is built to ensure predictable execution and reviewable logic:
 
-The project keeps the same core shape:
+- **Bounded evaluation.** Rule count, condition op count, context entries, and atom length are capped. A global evaluation budget prevents any request from evaluating unbounded graphs.
+- **Zero heap allocation during evaluation.** Policy construction allocates; `Policy::evaluate*` does not.
+- **ASCII-only atoms.** Identifiers are strictly limited to `[a-z0-9._:/-]` to prevent normalization bugs.
+- **Typed inputs.** Values and queries use explicit typings rather than arbitrary `&str` scopes.
+- **Deterministic deny-overrides.** The first matching deny overrides any allows.
+- **No recursive logic.** The condition language is evaluated via a linear postfix program.
+- **No `unsafe`.** The evaluator uses fixed-size stack arrays internally.
 
-```text
-Result<Decision> = evaluate(principal, action, resource, context)
-```
-
-The implementation stays deliberately small to remain straightforward to audit.
-
-## Security posture
-
-The design makes a few opinionated choices.
-
-- **No hidden normalization.** The engine validates identifier syntax (charset and length) and stops there. It does not fold case, collapse path aliases, expand prefixes, or otherwise reconcile equivalent representations. Inputs that are semantically identical but textually different will not match each other.
-- **ASCII-only atoms.** Request and policy strings are restricted to `[a-z0-9._:/-]` and a fixed maximum length.
-- **Typed request inputs.** `Principal`, `Action`, and `Resource` are distinct types instead of plain `&str`.
-- **Bounded evaluation.** Rule count, condition op count, condition depth, context entries, and atom length are capped.
-- **Fail-closed budget.** The budget is a **global bounded-work-unit counter for the entire evaluation pass**, not a per-rule limit. Each selector check (principal, action, resource) costs 1 unit; each condition op costs 1 unit. `Exact` is a single comparison; `Prefix` scans bytes up to atom length; `Set` performs up to `MAX_SELECTOR_SET` comparisons — all bounded, so 1 unit per selector check is a conservative but safe accounting. Consumption is path-dependent — rules whose selectors fail early charge fewer units than rules that reach a full condition program. If the counter reaches zero, evaluation returns `Err(EvaluationBudgetExceeded)` instead of returning an incomplete decision. `Policy::new` computes a worst-case safe ceiling automatically; `Policy::with_budget` is an advanced override for callers who have measured their own workload.
-- **Deterministic deny-overrides.** The first matching deny wins. Allows are remembered and returned only if no deny matches later.
-- **No `unsafe`.** The crate forbids `unsafe_code` and keeps the evaluator on fixed-size stack storage.
-- **Zero heap allocation during evaluation.** Policy construction allocates. `Policy::evaluate*` does not.
-
-## Design limits
-
-The primary goal is to constrain the authorization problem until the implementation becomes reviewable. To maintain this discipline, the library:
-
-- drops `MaybeUninit` from the hot path in favor of plain stack arrays,
-- rejects invalid identifier syntax and performs no semantic normalization,
-- rejects duplicate context keys,
-- uses an explicit evaluation budget,
-- exposes `DecisionReport` so callers can log which rule matched without allocating an explanation string. `DecisionReport` is for server-side audit logging only; do not forward `matched_rule_name` or `matched_rule_index` to untrusted callers, as they reveal policy structure and can be used to probe rule boundaries.
-
-The crate intentionally supports a small rule model and leaves policy management outside the library.
-
-## Rule model
-
-A rule contains:
-
-- `effect`: `Allow` or `Deny`
-- `principal` selector: `Any`, `Exact`, `Prefix`, or `Set`
-- `action` selector: `Any`, `Exact`, `Prefix`, or `Set`
-- `resource` selector: `Any`, `Exact`, `Prefix`, or `Set`
-- optional condition program in postfix form
-
-`Exact` performs byte-exact equality. `Prefix` performs a byte-exact `starts_with` check
-(see the [prefix safety note](#prefix-selector-safety) below). `Set` tests byte-exact membership
-against a fixed list of up to `MAX_SELECTOR_SET` validated atoms.
-
-The condition language is intentionally small:
-
-- `AttrPresent`
-- `AttrEqBool`
-- `AttrEqInt`
-- `AttrEqStr`
-- `True`
-- `False`
-- `Not`
-- `And`
-- `Or`
-
-Using postfix form keeps validation and evaluation non-recursive.
+The crate intentionally keeps the rule model minimal (`Any`, `Exact`, `Prefix`, and `Set` matching).
 
 ## Non-goals
 
-`gate1` does not try to solve:
+`gate1` is a decision kernel, not a full-stack authorization framework. It does not try to solve:
 
-- distributed policy management,
-- user-friendly policy authoring,
-- regex, glob, or general query-language matching (Prefix and Set are the intentional limit),
-- external attribute fetching,
-- role expansion,
-- time-based conditions,
-- multi-tenant policy storage,
-- cryptographic attestation of inputs.
+- distributed policy management or storage,
+- user-friendly policy authoring dialects,
+- attribute fetching (callers must fully populate the context),
+- regex, glob, or general query-language matching,
+- role expansion or multi-tenant abstractions.
 
-Those belong outside the core.
+## Security & Release Notes
 
-## Security & Operations
-
-See [`docs/SECURITY.md`](docs/SECURITY.md) for detailed information on:
-- The canonicalization contract and input taxonomy
-- Fail-closed evaluation limits and bounds computation
-- Prefix selector safety
-- Strict `NoMatch` behavior and fallback mapping
+See [`docs/SECURITY.md`](docs/SECURITY.md) for detailed implementation contracts, including:
+- The canonicalization contract
+- Fail-closed evaluation limits
+- Prefix selector delimiter safety
+- `NoMatch` fallback risks
 - MSRV (Minimum Supported Rust Version) constraints
