@@ -1,6 +1,6 @@
 # Gate1 Security Guarantees & Constraints
 
-This document outlines the detailed security posture, bounds, and behavioral contracts of the Gate1 authorization kernel.
+This document outlines the detailed security posture, bounds, and behavioral contracts of the Gate1 authorization evaluator.
 
 ## Canonicalization contract
 

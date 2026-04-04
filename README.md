@@ -69,7 +69,7 @@ The crate intentionally keeps the rule model minimal (`Any`, `Exact`, `Prefix`, 
 
 Gate1 establishes the execution boundary for authorization. It takes a pre-compiled policy, a flat array of context variables, and a discrete request, then returns a deterministic, zero-allocation result.
 
-Because it operates strictly as a decision kernel, it intentionally avoids:
+Because it operates strictly as an evaluator, it intentionally avoids:
 - **Semantic normalization:** Callers must canonicalize identifiers (e.g., aliases, aliased paths) at their own trust boundary.
 - **External attribute fetching:** Callers must independently populate the evaluation context before requesting a decision.
 - **Dynamic policy dialects:** Callers construct bindings and conditions natively in Rust.
