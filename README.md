@@ -75,7 +75,7 @@ The goal is to constrain the authorization problem until the implementation beco
 Gate1 establishes the execution boundary for authorization. It takes a pre-compiled policy, a flat array of context variables, and a discrete request, then returns a deterministic, zero-allocation result.
 
 Because it operates strictly as an evaluator, it intentionally avoids:
-- **Semantic normalization:** Callers must canonicalize identifiers (e.g., aliases, aliased paths) at their own trust boundary.
+- **Semantic normalization:** Gate1 does no string guessing. If two identifiers look different, they are different. You must resolve aliases, capitalization, or alternate paths before handing data to the engine, or it will just blindly fail to match.
 - **External attribute fetching:** Callers must independently populate the evaluation context before requesting a decision.
 - **Dynamic policy dialects:** Callers construct bindings and conditions natively in Rust.
 
