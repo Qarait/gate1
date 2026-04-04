@@ -236,7 +236,7 @@ pub struct Rule {
 impl Rule {
     /// Starts building an allow rule with the given name.
     ///
-    /// `name` is syntax-validated (charset `[a-z0-9._:/-]`, max [`MAX_ATOM_LEN`] bytes).
+    /// `name` is syntax-validated (charset `[a-z0-9._:/-]`, max [`crate::MAX_ATOM_LEN`] bytes).
     /// Rule names must be unique within a [`Policy`]; duplicates are rejected at `Policy::new`.
     /// All three selectors default to `Any`.
     pub fn allow(name: impl Into<String>) -> Result<RuleBuilder, Error> {
