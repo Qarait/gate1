@@ -131,61 +131,11 @@ Using postfix form keeps validation and evaluation non-recursive.
 
 Those belong outside the core.
 
-## Testing strategy
+## Security & Operations
 
-The test suite covers:
-
-- allow / deny / no-match paths,
-- duplicate context key rejection,
-- condition depth validation,
-- fail-closed budget exhaustion across multiple rules and across the selector/condition boundary,
-- zero-allocation request-time evaluation using a counting global allocator,
-- prefix selector match and miss,
-- set selector member match and non-member miss,
-- `evaluate_deny_by_default` NoMatch → Deny conversion and allow passthrough,
-- semantic non-normalization (non-canonical inputs produce NoMatch, not Deny).
-
-A Criterion benchmark suite (`benches/evaluate.rs`) covers allow path, no-match path,
-prefix selector, set selector, condition evaluation, and worst-case rule-count scaling
-across 8, 16, 32, and 64 rules. Run with `cargo bench`. Context is pre-built outside
-the timed loops; results measure `Policy::evaluate*` cost directly.
-
-## MSRV (Minimum Supported Rust Version)
-
-Gate1's published library target is guaranteed to compile on rustc 1.74.0. Note that this MSRV claim applies *strictly to the library crate*. Because benchmarking and testing tools frequently bump their own compiler requirements, compiling the full repository (including tests, benches, and all `[dev-dependencies]`) may require a newer Rust toolchain.
-
-## Prefix selector safety
-
-Because `Selector::Prefix` uses a byte-exact `starts_with` check, a bare prefix like
-`billing` matches both `billing:invoice-1` **and** `billingplus:account-7`. Prefer
-namespaced prefixes that include a delimiter, such as `billing:`, so the match boundary
-is unambiguous. This is enforced by convention, not by the engine.
-
-## Canonicalization contract
-
-Gate1 validates identifier syntax, not identifier meaning. If your system accepts mixed case, alternate numeric encodings, aliases, Unicode forms, or multiple path/resource representations for the same entity, canonicalize those before constructing Gate1 inputs.
-
-**What the engine checks:**
-
-- Characters: `[a-z0-9._:/-]` only; uppercase, Unicode, and whitespace are rejected at construction time.
-- Length: atoms are capped at `MAX_ATOM_LEN` bytes.
-
-**What the engine does not check:**
-
-- Whether two textually distinct atoms refer to the same logical entity.
-- Whether a path, tenant prefix, or legacy ID is an alias for another.
-
-**Examples of inputs that will not match without caller-side canonicalization:**
-
-| Pair | Why they won't match |
-|---|---|
-| `invoice:123` vs `invoice:0123` | leading zero is a different byte sequence |
-| `tenant:acme` vs `acme` | missing prefix |
-| `/data/reports` vs `data/reports` | leading slash differs |
-| `user:alice` vs `user:Alice` | uppercase rejected at construction; callers must lowercase first |
-
-**Security-relevant consequence:**
-
-A `NoMatch` result means no rule in the policy matched the *exact* inputs supplied. It does not mean the requester lacks access in the broader sense. If non-canonical inputs reach the engine — for example, `invoice:0123` when the policy was written for `invoice:123` — the engine will return `NoMatch` and your application may incorrectly infer that access is safe. Canonicalize inputs at the trust boundary, before calling the engine.
-
-This split is deliberate: the kernel stays small, explicit, and easy to audit. Semantic normalization belongs in the layer that understands your identity model.
+See [`docs/SECURITY.md`](docs/SECURITY.md) for detailed information on:
+- The canonicalization contract and input taxonomy
+- Fail-closed evaluation limits and bounds computation
+- Prefix selector safety
+- Strict `NoMatch` behavior and fallback mapping
+- MSRV (Minimum Supported Rust Version) constraints

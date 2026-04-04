@@ -28,8 +28,7 @@ pub enum Decision {
     /// A matching deny rule was found; deny-overrides is always applied.
     Deny,
     /// No rule matched the exact inputs supplied. Not equivalent to `Deny`.
-    /// The most common cause is non-canonical inputs — see the crate-level canonicalization
-    /// contract.
+    /// See `docs/SECURITY.md` for canonicalization implications.
     NoMatch,
 }
 
@@ -94,10 +93,7 @@ impl Selector {
     /// Matching is byte-exact: `"billing:"` matches `"billing:invoice-1"` but not `"Billing:"`.
     /// No normalization is performed.
     ///
-    /// **Safety note:** a bare prefix without a delimiter (e.g. `"billing"`) will match any value
-    /// that starts with those bytes, including `"billingplus:account-7"`. Use a namespaced
-    /// prefix with a trailing delimiter such as `"billing:"` to make the match boundary
-    /// unambiguous.
+    /// See `docs/SECURITY.md` for prefix selector safety regarding delimiters.
     ///
     /// [`MAX_ATOM_LEN`]: crate::atom::MAX_ATOM_LEN
     pub fn prefix(prefix: impl Into<String>) -> Result<Self, Error> {
@@ -448,9 +444,9 @@ impl Policy {
 
     /// Evaluates the policy and converts [`Decision::NoMatch`] to [`Decision::Deny`].
     ///
-    /// This is the **recommended entry point for most applications**. A `NoMatch` result means
-    /// the policy had no opinion; treating it as `Allow` would be fail-open. This method makes
-    /// the safe default explicit so callers do not have to remember to handle `NoMatch` themselves.
+    /// This is the **recommended entry point for most applications**. It explicitly enforces
+    /// a safe fallback to prevent mapping errors when policies have no opinion (`NoMatch`).
+    /// See `docs/SECURITY.md` for fail-open risks.
     ///
     /// The result is either `Ok(Allow)`, `Ok(Deny)`, or `Err(...)`. `NoMatch` is never returned.
     pub fn evaluate_deny_by_default(
