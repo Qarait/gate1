@@ -23,15 +23,16 @@ jobs:
         run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 
       - name: Inventory package contents
-        run: cargo package --list > package_list.txt
+        run: cargo package --list | tee "$RUNNER_TEMP/package_list.txt"
 
       - name: Run publish dry-run
-        run: cargo publish --dry-run --allow-dirty > publish_dry_run.txt 2>&1
+        run: cargo publish --dry-run | tee "$RUNNER_TEMP/publish_dry_run.txt"
 
       - name: Upload Audit Artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: release-audit-proofs
           path: |
-            package_list.txt
-            publish_dry_run.txt
+            ${{ runner.temp }}/package_list.txt
+            ${{ runner.temp }}/publish_dry_run.txt
