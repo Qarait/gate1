@@ -15,8 +15,6 @@ jobs:
       
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustdoc
 
       - name: Run doc tests
         run: cargo test --doc
