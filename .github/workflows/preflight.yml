@@ -1,0 +1,39 @@
+name: Preflight (Release Audit)
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  preflight:
+    name: Preflight Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustdoc
+
+      - name: Run doc tests
+        run: cargo test --doc
+
+      - name: Build docs (deny warnings)
+        run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
+
+      - name: Inventory package contents
+        run: cargo package --list > package_list.txt
+
+      - name: Run publish dry-run
+        run: cargo publish --dry-run > publish_dry_run.txt 2>&1
+
+      - name: Upload Audit Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-audit-proofs
+          path: |
+            package_list.txt
+            publish_dry_run.txt
