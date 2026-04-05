@@ -94,7 +94,6 @@ fn non_canonical_resource_yields_no_match() {
         .resource_exact("invoice:123")
         .unwrap()
         .build()])
-        .build()])
     .unwrap();
     let decision = policy
         .evaluate(
